@@ -1,10 +1,6 @@
 package com.mochyy.mochymusic.ui.screens.audiolab
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.EnterExitState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -20,7 +16,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,14 +36,17 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mochyy.mochymusic.LocalAppContentObscured
 import com.mochyy.mochymusic.R
 import com.mochyy.mochymusic.eq.EightDSettings
 import com.mochyy.mochymusic.ui.component.AppSwitch
+import com.mochyy.mochymusic.ui.component.LocalNavAnimatedContentScope
+import com.mochyy.mochymusic.ui.component.damageBoundary
 import com.mochyy.mochymusic.ui.theme.InterFontFamily
 import com.mochyy.mochymusic.viewmodels.AudioLabViewModel
+import kotlinx.coroutines.flow.first
 import kotlin.math.PI
 import kotlin.math.cos
-import kotlin.math.roundToInt
 import kotlin.math.sin
 
 @Composable
@@ -156,25 +161,36 @@ internal fun EightDAudioCard(viewModel: AudioLabViewModel) {
 
 @Composable
 private fun OrbitIndicator(settings: EightDSettings) {
-    val angle = if (settings.enabled) {
-        val transition = rememberInfiniteTransition(label = "eightDOrbit")
-        val rotation by transition.animateFloat(
-            initialValue = 0f,
-            targetValue = 360f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(
-                    durationMillis = (1000f / settings.rotationSpeedHz).roundToInt().coerceAtLeast(1),
-                    easing = LinearEasing,
-                ),
-            ),
-            label = "eightDOrbitAngle",
-        )
-        rotation
-    } else {
-        0f
+    val angle = remember { mutableFloatStateOf(0f) }
+    val obscured = LocalAppContentObscured.current
+    val navTransition = LocalNavAnimatedContentScope.current?.transition
+    val held = remember(obscured, navTransition) {
+        derivedStateOf {
+            obscured.value || (navTransition != null &&
+                (navTransition.currentState != EnterExitState.Visible || navTransition.targetState != EnterExitState.Visible))
+        }
+    }
+    // turns at the real rotation speed, and holds still while the player covers the page or the page is moving
+    LaunchedEffect(settings.enabled, settings.rotationSpeedHz) {
+        if (!settings.enabled) {
+            angle.floatValue = 0f
+            return@LaunchedEffect
+        }
+        var last = 0L
+        while (true) {
+            if (held.value) {
+                snapshotFlow { held.value }.first { !it }
+                last = 0L
+            }
+            withFrameNanos { now ->
+                if (last != 0L) angle.floatValue = (angle.floatValue + (now - last) / 1e9f * 360f * settings.rotationSpeedHz) % 360f
+                last = now
+            }
+        }
     }
 
-    Canvas(Modifier.fillMaxWidth().height(148.dp)) {
+    // the angle is only read in draw, so the turning dot repaints this box and never recomposes the card
+    Canvas(Modifier.fillMaxWidth().height(148.dp).damageBoundary()) {
         val center = Offset(size.width / 2f, size.height / 2f)
         val radius = minOf(size.width * 0.34f, size.height * 0.43f)
         val line = LabColors.StageLine
@@ -189,7 +205,7 @@ private fun OrbitIndicator(settings: EightDSettings) {
         drawLine(line, Offset(center.x - radius, center.y), Offset(center.x + radius, center.y), 1.dp.toPx())
         drawLine(line, Offset(center.x, center.y - radius), Offset(center.x, center.y + radius), 1.dp.toPx())
 
-        val radians = (angle - 90f) * PI.toFloat() / 180f
+        val radians = (angle.floatValue - 90f) * PI.toFloat() / 180f
         val orbitRadius = radius * (0.25f + settings.depth * 0.75f)
         val source = Offset(
             center.x + cos(radians) * orbitRadius,

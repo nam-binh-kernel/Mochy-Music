@@ -3,10 +3,8 @@
 package com.mochyy.mochymusic.ui.player.menu
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
-import androidx.compose.foundation.gestures.drag
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -56,18 +54,14 @@ fun LineSlider(
                 layout(placeable.width, placeable.height) { placeable.place(0, 0) }
             }
             .pointerInput(Unit) {
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    report(down.position.x)
-                    val dragStart = awaitHorizontalTouchSlopOrCancellation(down.id) { change, _ ->
-                        change.consume()
-                        report(change.position.x)
-                    } ?: return@awaitEachGesture
-                    drag(dragStart.id) { change ->
-                        report(change.position.x)
-                        change.consume()
-                    }
-                }
+                detectTapGestures { offset -> report(offset.x) }
+            }
+            .pointerInput(Unit) {
+
+                detectHorizontalDragGestures(
+                    onDragStart = { offset -> report(offset.x) },
+                    onHorizontalDrag = { change, _ -> report(change.position.x) },
+                )
             }
     ) {
         Box(

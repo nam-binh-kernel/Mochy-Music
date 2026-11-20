@@ -21,20 +21,9 @@ data class EightDParams(
     val reverbLevel: Float = 0.4f,
 )
 
+// pans the song slowly around the head, the 8d card in audio fx sets how fast and how far
 @UnstableApi
 class EightDAudioProcessor(private val audioFx: AudioFxService) : BaseAudioProcessor() {
-    @Volatile
-    var isEnabled: Boolean = false
-
-    @Volatile
-    var rotationSpeedHz: Float = 0.15f
-
-    @Volatile
-    var depth: Float = 0.85f
-
-    @Volatile
-    var reverbLevel: Float = 0.4f
-
     private var sampleRate = 0
     private var phase = 0.0
     private var smoothedEnabled = 0f
@@ -61,14 +50,17 @@ class EightDAudioProcessor(private val audioFx: AudioFxService) : BaseAudioProce
         }
 
         val settings = audioFx.eightD
-        isEnabled = settings.enabled
-        rotationSpeedHz = settings.rotationSpeedHz
-        depth = settings.depth
-        reverbLevel = settings.reverbLevel
+        val targetEnabled = if (settings.enabled) 1f else 0f
+        // off and faded out, so the song goes through untouched instead of a sin and cos per sample
+        if (targetEnabled == 0f && smoothedEnabled == 0f) {
+            val output = replaceOutputBuffer(byteCount)
+            output.put(input)
+            output.flip()
+            return
+        }
 
-        val targetEnabled = if (isEnabled) 1f else 0f
-        val targetDepth = depth.coerceIn(0f, 1f)
-        val speed = rotationSpeedHz.coerceIn(0.05f, 0.5f).toDouble()
+        val targetDepth = settings.depth.coerceIn(0f, 1f)
+        val speed = settings.rotationSpeedHz.coerceIn(0.05f, 0.5f).toDouble()
         val smoothingStep = 1f / (sampleRate * SmoothingSeconds).coerceAtLeast(1f)
         val output = replaceOutputBuffer(byteCount).order(ByteOrder.nativeOrder())
         val frameCount = byteCount / StereoFrameBytes
@@ -102,7 +94,7 @@ class EightDAudioProcessor(private val audioFx: AudioFxService) : BaseAudioProce
     override fun onFlush() {
         phase = 0.0
         smoothedEnabled = 0f
-        smoothedDepth = depth.coerceIn(0f, 1f)
+        smoothedDepth = audioFx.eightD.depth.coerceIn(0f, 1f)
     }
 
     override fun onReset() {
