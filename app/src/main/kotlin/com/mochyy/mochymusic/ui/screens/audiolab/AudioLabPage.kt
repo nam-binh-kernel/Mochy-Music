@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -128,50 +129,32 @@ fun AudioLabPage(
             val headerDp = headerHeight.toDp()
 
             val backdrop = subcompose("backdrop") {
-                LabBackdrop(scroll, headerHeight) {
-                    if (art != null) {
-                        // mostly covered and blurred: it stops animating there
-                        val hidden = remember(headerHeight) { derivedStateOf { scroll.value >= headerHeight * 0.6f } }
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .fillMaxWidth(if (wide) 0.4f else 0.5f)
-                                // past the header's bottom, so what stands in it dips under the sheet
-                                .height(headerDp + LabArtOverhang)
-                                .padding(top = statusTop + 24.dp),
-                        ) { art(hidden) }
-                    }
-                    LabHeader(title, subtitle, inset, statusTop, titleScale)
-                }
+                LabBackdropContent(
+                    scroll = scroll,
+                    headerHeight = headerHeight,
+                    headerDp = headerDp,
+                    wide = wide,
+                    statusTop = statusTop,
+                    title = title,
+                    subtitle = subtitle,
+                    inset = inset,
+                    titleScale = titleScale,
+                    art = art,
+                )
             }.map { it.measure(constraints) }
 
             val body = subcompose("body") {
-                // its own layer: scrolling repaints the sheet, not the backdrop and title behind it
-                Box(Modifier.fillMaxSize().graphicsLayer()) {
-                    Column(Modifier.fillMaxSize().verticalScroll(scroll)) {
-                        Spacer(Modifier.height(headerDp))
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                // black to the bottom even when there's little on the page
-                                .heightIn(min = viewport - headerDp + SheetCorner)
-                                .clip(RoundedCornerShape(topStart = SheetCorner, topEnd = SheetCorner))
-                                .background(SheetColor),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .widthIn(max = ContentMaxWidth)
-                                    .fillMaxWidth()
-                                    .padding(horizontal = SideMargin)
-                                    .padding(top = 30.dp, bottom = bottomInset + 32.dp),
-                                content = content,
-                            )
-                        }
-                    }
-                    TopScrim(scroll, headerHeight, statusTop)
-                    LabBackButton(onBack, Modifier.padding(start = inset, top = statusTop + 14.dp))
-                }
+                LabBodyContent(
+                    scroll = scroll,
+                    headerHeight = headerHeight,
+                    headerDp = headerDp,
+                    viewport = viewport,
+                    bottomInset = bottomInset,
+                    inset = inset,
+                    statusTop = statusTop,
+                    onBack = onBack,
+                    content = content,
+                )
             }.map { it.measure(constraints) }
 
             layout(constraints.maxWidth, constraints.maxHeight) {
@@ -179,6 +162,76 @@ fun AudioLabPage(
                 body.forEach { it.place(0, 0) }
             }
         }
+    }
+}
+
+@Composable
+private fun LabBackdropContent(
+    scroll: ScrollState,
+    headerHeight: Int,
+    headerDp: Dp,
+    wide: Boolean,
+    statusTop: Dp,
+    title: LabTitle,
+    subtitle: String?,
+    inset: Dp,
+    titleScale: Float,
+    art: (@Composable BoxScope.(hidden: State<Boolean>) -> Unit)?,
+) {
+    LabBackdrop(scroll, headerHeight) {
+        if (art != null) {
+            // mostly covered and blurred: it stops animating there
+            val hidden = remember(headerHeight) { derivedStateOf { scroll.value >= headerHeight * 0.6f } }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .fillMaxWidth(if (wide) 0.4f else 0.5f)
+                    // past the header's bottom, so what stands in it dips under the sheet
+                    .height(headerDp + LabArtOverhang)
+                    .padding(top = statusTop + 24.dp),
+            ) { art(hidden) }
+        }
+        LabHeader(title, subtitle, inset, statusTop, titleScale)
+    }
+}
+
+@Composable
+private fun LabBodyContent(
+    scroll: ScrollState,
+    headerHeight: Int,
+    headerDp: Dp,
+    viewport: Dp,
+    bottomInset: Dp,
+    inset: Dp,
+    statusTop: Dp,
+    onBack: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    // its own layer: scrolling repaints the sheet, not the backdrop and title behind it
+    Box(Modifier.fillMaxSize().graphicsLayer()) {
+        Column(Modifier.fillMaxSize().verticalScroll(scroll)) {
+            Spacer(Modifier.height(headerDp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // black to the bottom even when there's little on the page
+                    .heightIn(min = viewport - headerDp + SheetCorner)
+                    .clip(RoundedCornerShape(topStart = SheetCorner, topEnd = SheetCorner))
+                    .background(SheetColor),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .widthIn(max = ContentMaxWidth)
+                        .fillMaxWidth()
+                        .padding(horizontal = SideMargin)
+                        .padding(top = 30.dp, bottom = bottomInset + 180.dp),
+                    content = content,
+                )
+            }
+        }
+        TopScrim(scroll, headerHeight, statusTop)
+        LabBackButton(onBack, Modifier.padding(start = inset, top = statusTop + 14.dp).statusBarsPadding())
     }
 }
 

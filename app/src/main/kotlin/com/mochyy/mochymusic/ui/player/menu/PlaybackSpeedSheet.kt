@@ -113,7 +113,7 @@ fun PlaybackSpeedSheet(onDismiss: () -> Unit) {
                 // the full video mode's card is only as tall as the phone is wide, so the sliders scroll there
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
-                .padding(top = 10.dp, bottom = 28.dp)
+                .padding(top = 10.dp, bottom = 140.dp)
         ) {
             Spacer(modifier = Modifier.height(22.dp))
             Text(
